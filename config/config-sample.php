@@ -10,10 +10,10 @@ $telegram_config = [
     'webhook_url' => 'https://yourdomain.com/telegram-webhook',
 ];
 
-define(trongrid_config = [)
-    'api_key' => 'YOUR_TRONGRID_API_KEY_HERE',
-    'api_url' => 'https://api.trongrid.io',
-];
+define('TRONGRID_CONFIG', [
+  'api_key' => 'your-trongrid-api-key-here',
+  'api_url' => 'https://api.trongrid.io',
+]);
 
 // This is the default database used for all application data, like user accounts.
 define('MYSQL_HOST', 'localhost');

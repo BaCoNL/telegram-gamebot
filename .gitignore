@@ -1,2 +1,11 @@
 .idea/*
 config/config.php
+
+# Composer
+/vendor/
+composer.phar
+composer.lock
+
+# Composer cache
+.composer/
+

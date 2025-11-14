@@ -1,0 +1,14 @@
+{
+  "name": "baconl/telegram-project",
+  "description": "Telegram bot project",
+  "type": "project",
+  "require": {
+    "php": "^7.4 || ^8.0",
+    "longman/telegram-bot": "^0.81"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "src/"
+    }
+  }
+}
