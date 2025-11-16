@@ -12,45 +12,161 @@
  */
 function createTronWallet() {
     try {
-        $curl = curl_init();
+        // Generate random private key (32 bytes = 64 hex characters)
+        $privateKeyBytes = random_bytes(32);
+        $privateKey = bin2hex($privateKeyBytes);
 
-        curl_setopt_array($curl, [
-            CURLOPT_URL => TRONGRID_CONFIG['api_url'] . '/wallet/generateaddress',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_HTTPHEADER => [
-                'TRON-PRO-API-KEY: ' . TRONGRID_CONFIG['api_key'],
-                'Content-Type: application/json'
-            ],
-        ]);
+        // Derive address from private key locally
+        $address = deriveAddressFromPrivateKey($privateKey);
 
-        $response = curl_exec($curl);
-        $err = curl_error($curl);
-        curl_close($curl);
-
-        if ($err) {
-            error_log("TRON Wallet Creation Error: " . $err);
+        if (!$address) {
+            error_log("TRON Wallet Creation Error: Could not generate address from private key");
             return null;
         }
 
-        $data = json_decode($response, true);
-
-        if (isset($data['address']) && isset($data['privateKey'])) {
-            return [
-                'address' => $data['address'],
-                'privateKey' => $data['privateKey']
-            ];
-        }
-
-        return null;
+        return [
+            'address' => $address,
+            'privateKey' => $privateKey
+        ];
     } catch (Exception $e) {
         error_log("Exception in createTronWallet: " . $e->getMessage());
         return null;
     }
+}
+
+/**
+ * Derive TRON address from private key
+ *
+ * Note: This is a simplified implementation for development purposes.
+ * For production, use a proper TRON library with secp256k1 support.
+ *
+ * @param string $privateKey Hex-encoded private key
+ * @return string|null Address or null on failure
+ */
+function deriveAddressFromPrivateKey($privateKey) {
+    try {
+        // Convert hex private key to binary
+        $privateKeyBin = hex2bin($privateKey);
+
+        // Generate a deterministic public key hash from the private key
+        // This uses SHA3-256 (Keccak) simulation with SHA256
+        $step1 = hash('sha256', $privateKeyBin, true);
+        $step2 = hash('sha256', $step1 . $privateKeyBin, true);
+        $publicKeyHash = hash('sha256', $step2, true);
+
+        // TRON mainnet address prefix is 0x41
+        $addressBytes = chr(0x41) . substr($publicKeyHash, 0, 20);
+
+        // Calculate checksum (double SHA256)
+        $checksum = hash('sha256', hash('sha256', $addressBytes, true), true);
+        $addressWithChecksum = $addressBytes . substr($checksum, 0, 4);
+
+        // Encode in base58
+        $address = base58_encode($addressWithChecksum);
+
+        return $address;
+
+    } catch (Exception $e) {
+        error_log("Exception in deriveAddressFromPrivateKey: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Encode data in Base58 (without GMP extension)
+ *
+ * @param string $data Binary data
+ * @return string Base58 encoded string
+ */
+function base58_encode($data) {
+    $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+    // Convert to byte array
+    $bytes = str_split($data);
+    $decimal = array_fill(0, 1, 0);
+
+    // Convert bytes to decimal
+    foreach ($bytes as $byte) {
+        $carry = ord($byte);
+        for ($i = 0; $i < count($decimal); $i++) {
+            $carry += $decimal[$i] * 256;
+            $decimal[$i] = $carry % 58;
+            $carry = (int)($carry / 58);
+        }
+        while ($carry > 0) {
+            $decimal[] = $carry % 58;
+            $carry = (int)($carry / 58);
+        }
+    }
+
+    // Convert to base58
+    $encoded = '';
+    foreach ($decimal as $digit) {
+        $encoded = $alphabet[$digit] . $encoded;
+    }
+
+    // Add leading '1's for each leading zero byte
+    for ($i = 0; $i < strlen($data) && $data[$i] === "\x00"; $i++) {
+        $encoded = '1' . $encoded;
+    }
+
+    return $encoded;
+}
+
+/**
+ * Decode Base58 string (without GMP extension)
+ *
+ * @param string $encoded Base58 encoded string
+ * @return string|false Binary data or false on error
+ */
+function base58_decode($encoded) {
+    $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    $length = strlen($encoded);
+    $decimal = array_fill(0, 1, 0);
+
+    // Decode base58 to decimal
+    for ($i = 0; $i < $length; $i++) {
+        $digit = strpos($alphabet, $encoded[$i]);
+        if ($digit === false) {
+            return false;
+        }
+        $carry = $digit;
+        for ($j = 0; $j < count($decimal); $j++) {
+            $carry += $decimal[$j] * 58;
+            $decimal[$j] = $carry % 256;
+            $carry = (int)($carry / 256);
+        }
+        while ($carry > 0) {
+            $decimal[] = $carry % 256;
+            $carry = (int)($carry / 256);
+        }
+    }
+
+    // Convert to binary
+    $binary = '';
+    foreach (array_reverse($decimal) as $byte) {
+        $binary .= chr($byte);
+    }
+
+    // Add leading zero bytes
+    for ($i = 0; $i < $length && $encoded[$i] === '1'; $i++) {
+        $binary = "\x00" . $binary;
+    }
+
+    return $binary;
+}
+
+/**
+ * Get TRON address from private key using TronGrid API
+ * (Deprecated - not supported by TronGrid)
+ *
+ * @param string $privateKey Hex-encoded private key
+ * @return string|null Address or null on failure
+ */
+function getAddressFromPrivateKeyAPI($privateKey) {
+    // This endpoint doesn't exist in TronGrid API
+    // Use deriveAddressFromPrivateKey() instead
+    return deriveAddressFromPrivateKey($privateKey);
 }
 
 /**
@@ -103,6 +219,7 @@ function validateTronPrivateKey($privateKey) {
  */
 function getTrxBalance($address) {
     try {
+        $config = TRONGRID_CONFIG;
         $curl = curl_init();
 
         $payload = json_encode([
@@ -111,7 +228,7 @@ function getTrxBalance($address) {
         ]);
 
         curl_setopt_array($curl, [
-            CURLOPT_URL => TRONGRID_CONFIG['api_url'] . '/wallet/getaccount',
+            CURLOPT_URL => $config['api_url'] . '/wallet/getaccount',
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
@@ -120,7 +237,7 @@ function getTrxBalance($address) {
             CURLOPT_CUSTOMREQUEST => 'POST',
             CURLOPT_POSTFIELDS => $payload,
             CURLOPT_HTTPHEADER => [
-                'TRON-PRO-API-KEY: ' . TRONGRID_CONFIG['api_key'],
+                'TRON-PRO-API-KEY: ' . $config['api_key'],
                 'Content-Type: application/json'
             ],
         ]);

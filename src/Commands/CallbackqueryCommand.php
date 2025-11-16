@@ -95,40 +95,68 @@ class CallbackqueryCommand extends SystemCommand
     {
         require_once BASE_PATH . '/functions/tron_wallet.php';
 
-        $walletData = createTronWallet();
-
-        if (!$walletData) {
+        // Check if user already has a wallet
+        $existingWallet = \R::findOne('wallet', 'telegram_user_id = ?', [$user_id]);
+        if ($existingWallet) {
             return Request::editMessageText([
                 'chat_id' => $chat_id,
                 'message_id' => $message_id,
-                'text' => "❌ Error creating wallet. Please try again later.",
+                'text' => "⚠️ You already have a wallet!\n\nAddress: `{$existingWallet->address}`",
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        // Show loading message
+        Request::editMessageText([
+            'chat_id' => $chat_id,
+            'message_id' => $message_id,
+            'text' => "⏳ Creating your TRON wallet...",
+        ]);
+
+        $walletData = createTronWallet();
+
+        if (!$walletData) {
+            error_log("Wallet creation failed for user $user_id");
+            return Request::editMessageText([
+                'chat_id' => $chat_id,
+                'message_id' => $message_id,
+                'text' => "❌ Error creating wallet. Please try again later.\n\nIf the problem persists, contact support.",
             ]);
         }
 
         // Save wallet to database
-        $wallet = \R::dispense('wallet');
-        $wallet->telegram_user_id = $user_id;
-        $wallet->address = $walletData['address'];
-        $wallet->private_key = encryptPrivateKey($walletData['privateKey']);
-        $wallet->trx_balance = 0;
-        $wallet->usd_balance = 0;
-        $wallet->created_at = date('Y-m-d H:i:s');
-        $wallet->updated_at = date('Y-m-d H:i:s');
-        \R::store($wallet);
+        try {
+            $wallet = \R::dispense('wallet');
+            $wallet->telegram_user_id = $user_id;
+            $wallet->address = $walletData['address'];
+            $wallet->private_key = encryptPrivateKey($walletData['privateKey']);
+            $wallet->trx_balance = 0;
+            $wallet->usd_balance = 0;
+            $wallet->created_at = date('Y-m-d H:i:s');
+            $wallet->updated_at = date('Y-m-d H:i:s');
+            \R::store($wallet);
 
-        $text = "✅ *Wallet Created Successfully!*\n\n";
-        $text .= "📍 *Address:*\n`{$walletData['address']}`\n\n";
-        $text .= "🔑 *Private Key:*\n`{$walletData['privateKey']}`\n\n";
-        $text .= "⚠️ *IMPORTANT:* Save your private key in a safe place! ";
-        $text .= "This is the only time it will be shown in plain text.\n\n";
-        $text .= "You can now deposit TRX to start playing! 🎲";
+            $text = "✅ *Wallet Created Successfully!*\n\n";
+            $text .= "📍 *Address:*\n`{$walletData['address']}`\n\n";
+            $text .= "🔑 *Private Key:*\n`{$walletData['privateKey']}`\n\n";
+            $text .= "⚠️ *IMPORTANT:* Save your private key in a safe place! ";
+            $text .= "This is the only time it will be shown in plain text.\n\n";
+            $text .= "You can now deposit TRX to start playing! 🎲";
 
-        return Request::editMessageText([
-            'chat_id' => $chat_id,
-            'message_id' => $message_id,
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-        ]);
+            return Request::editMessageText([
+                'chat_id' => $chat_id,
+                'message_id' => $message_id,
+                'text' => $text,
+                'parse_mode' => 'Markdown',
+            ]);
+        } catch (Exception $e) {
+            error_log("Database error saving wallet for user $user_id: " . $e->getMessage());
+            return Request::editMessageText([
+                'chat_id' => $chat_id,
+                'message_id' => $message_id,
+                'text' => "❌ Error saving wallet. Please try again later.",
+            ]);
+        }
     }
 
     /**
