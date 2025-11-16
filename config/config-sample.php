@@ -8,6 +8,7 @@ define('BASE_URL', 'http://localhost/');
 $telegram_config = [
     'bot_token' => 'YOUR_BOT_TOKEN_HERE',
     'webhook_url' => 'https://yourdomain.com/telegram-webhook',
+    'bot_username' => 'bot_username',
 ];
 
 define('TRONGRID_CONFIG', [

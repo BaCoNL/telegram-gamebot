@@ -1,8 +1,9 @@
 <?php
 // bootstrap.php
-define('BASE_PATH', dirname(__FILE__));
-
-// Include core files
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', dirname(__FILE__));
+}
+// Include core files (config loads $telegram_config, plugin sets up DB)
 require_once BASE_PATH . '/plugins/rb.php';
 require_once BASE_PATH . '/config/config.php';
 

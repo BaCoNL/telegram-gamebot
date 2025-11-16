@@ -1,0 +1,9 @@
+# Protect sensitive files
+<FilesMatch "^(config\.php|.*\.md|composer\.(json|lock))$">
+    Require all denied
+</FilesMatch>
+
+# If you want to make telegram-webhook.php the default handler
+DirectoryIndex telegram-webhook.php
+
+
