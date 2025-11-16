@@ -3,7 +3,16 @@
     Require all denied
 </FilesMatch>
 
-# If you want to make telegram-webhook.php the default handler
-DirectoryIndex telegram-webhook.php
+RewriteEngine On
 
+# Whitelist IPs for full access (bypass rewrites)
+RewriteCond %{REMOTE_ADDR} =31.20.46.73 [OR]
+RewriteCond %{REMOTE_ADDR} =93.95.252.178
+RewriteRule ^ - [L]
 
+# Allow everyone to access the Telegram webhook endpoint directly
+RewriteCond %{REQUEST_URI} ^/telegram-webhook\.php$
+RewriteRule ^ - [L]
+
+# Otherwise, force all other requests to telegram-webhook.php
+RewriteRule ^.*$ /telegram-webhook.php [L,QSA]
