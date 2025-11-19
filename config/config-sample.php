@@ -28,3 +28,8 @@ R::setup(
   MYSQL_USER,
   MYSQL_PASSWORD
 );
+
+
+// House wallet
+define('HOUSE_WALLET_PRIVATE_KEY', 'PrivateKeyHereInHexFormat1234567890abcdef1234567890abcdef');
+define('HOUSE_WALLET_ADDRESS', 'walletAddressHereStartingWithT1234567890abcdef');
