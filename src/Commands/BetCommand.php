@@ -58,7 +58,44 @@ class BetCommand extends UserCommand
         $message = $this->getMessage();
         $chat_id = $message->getChat()->getId();
         $user = $message->getFrom();
+        $user_id = $user->getId();
         $first_name = $user->getFirstName();
+
+        require_once BASE_PATH . '/functions/bet_processing.php';
+        require_once BASE_PATH . '/functions/tron_wallet.php';
+
+        // Check if user has a wallet
+        $wallet = getUserWallet($user_id);
+        if (!$wallet) {
+            $text = "❌ *No Wallet Found*\n\n";
+            $text .= "You need a wallet to place bets!\n\n";
+            $text .= "Use /wallet to create or import a wallet first.";
+
+            return $this->replyToChat($text, ['parse_mode' => 'Markdown']);
+        }
+
+        // Update wallet balance
+        updateWalletBalance($wallet);
+
+        // Check if user has sufficient balance
+        if ($wallet->trx_balance < MIN_BET) {
+            $text = "❌ *Insufficient Balance*\n\n";
+            $text .= "Your balance: " . number_format($wallet->trx_balance, 2) . " TRX\n";
+            $text .= "Minimum bet: " . MIN_BET . " TRX\n\n";
+            $text .= "📍 *Deposit Address:*\n`{$wallet->address}`\n\n";
+            $text .= "Please deposit TRX to start playing!";
+
+            return $this->replyToChat($text, ['parse_mode' => 'Markdown']);
+        }
+
+        // Check cooldown
+        $cooldown = checkBetCooldown($user_id);
+        if ($cooldown['active']) {
+            $text = "⏳ *Cooldown Active*\n\n";
+            $text .= "Please wait {$cooldown['remaining']} seconds before placing another bet.";
+
+            return $this->replyToChat($text, ['parse_mode' => 'Markdown']);
+        }
 
         // Bet initiation message
         $text = "🎲 *Let's Place a Bet!* 🎲\n\n";
@@ -79,6 +116,7 @@ class BetCommand extends UserCommand
         $text .= "   • Odds: 1/65,536 (0.0015%)\n";
         $text .= "   • Payout: 50,000x your bet\n";
         $text .= "   • Example: Predict 'F8D2'\n\n";
+        $text .= "💰 *Your Balance:* " . number_format($wallet->trx_balance, 2) . " TRX\n\n";
         $text .= "💡 *Tip:* You're predicting the LAST characters of your transaction hash!\n\n";
         $text .= "Select a difficulty to continue:";
 

@@ -37,34 +37,45 @@ function createTronWallet() {
 /**
  * Derive TRON address from private key
  *
- * Note: This is a simplified implementation for development purposes.
- * For production, use a proper TRON library with secp256k1 support.
+ * IMPORTANT: This is a placeholder implementation.
+ * For production, you MUST use a proper secp256k1 library.
+ *
+ * Current implementation retrieves address from wallet table if it exists,
+ * or generates a test address for development.
  *
  * @param string $privateKey Hex-encoded private key
  * @return string|null Address or null on failure
  */
 function deriveAddressFromPrivateKey($privateKey) {
     try {
-        // Convert hex private key to binary
-        $privateKeyBin = hex2bin($privateKey);
+        // Validate private key format
+        if (!ctype_xdigit($privateKey) || strlen($privateKey) !== 64) {
+            error_log("Invalid private key format");
+            return null;
+        }
 
-        // Generate a deterministic public key hash from the private key
-        // This uses SHA3-256 (Keccak) simulation with SHA256
-        $step1 = hash('sha256', $privateKeyBin, true);
-        $step2 = hash('sha256', $step1 . $privateKeyBin, true);
-        $publicKeyHash = hash('sha256', $step2, true);
+        // Try to find existing wallet with this private key in database
+        // This is a workaround since we don't have proper crypto libraries
+        try {
+            $encryptedKey = encryptPrivateKey($privateKey);
+            $wallet = R::findOne('wallet', 'private_key = ?', [$encryptedKey]);
+            if ($wallet && $wallet->address) {
+                return $wallet->address;
+            }
+        } catch (Exception $e) {
+            // Database not available, continue with alternative method
+        }
 
-        // TRON mainnet address prefix is 0x41
-        $addressBytes = chr(0x41) . substr($publicKeyHash, 0, 20);
+        // For HOUSE wallet, check config
+        if (defined('HOUSE_WALLET_PRIVATE_KEY') && $privateKey === HOUSE_WALLET_PRIVATE_KEY) {
+            if (defined('HOUSE_WALLET_ADDRESS')) {
+                return HOUSE_WALLET_ADDRESS;
+            }
+        }
 
-        // Calculate checksum (double SHA256)
-        $checksum = hash('sha256', hash('sha256', $addressBytes, true), true);
-        $addressWithChecksum = $addressBytes . substr($checksum, 0, 4);
-
-        // Encode in base58
-        $address = base58_encode($addressWithChecksum);
-
-        return $address;
+        // If we can't derive it properly, we need to return an error
+        error_log("Cannot derive TRON address without proper secp256k1 library. Private key not in database.");
+        return null;
 
     } catch (Exception $e) {
         error_log("Exception in deriveAddressFromPrivateKey: " . $e->getMessage());
@@ -176,22 +187,8 @@ function getAddressFromPrivateKeyAPI($privateKey) {
  * @return string|null Address or null if invalid
  */
 function getAddressFromPrivateKey($privateKey) {
-    try {
-        // For now, we'll use a simple validation
-        // In production, you might want to use a proper TRON library
-        if (strlen($privateKey) !== 64) {
-            return null;
-        }
-
-        // You would normally derive the address from the private key
-        // For now, we'll use the TronGrid API to validate
-        // This is a simplified implementation
-
-        return validateTronPrivateKey($privateKey);
-    } catch (Exception $e) {
-        error_log("Exception in getAddressFromPrivateKey: " . $e->getMessage());
-        return null;
-    }
+    // Use the improved deriveAddressFromPrivateKey function
+    return deriveAddressFromPrivateKey($privateKey);
 }
 
 /**
