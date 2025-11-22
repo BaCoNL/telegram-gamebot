@@ -4,7 +4,12 @@
   "type": "project",
   "require": {
     "php": "^8.0 || ^8.3",
-    "longman/telegram-bot": "^0.81"
+    "longman/telegram-bot": "^0.81",
+    "ext-curl": "*",
+    "ext-gmp": "*",
+    "ext-hash": "*",
+    "ext-ctype": "*",
+    "ext-openssl": "*"
   },
   "autoload": {
     "psr-4": {

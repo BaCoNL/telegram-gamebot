@@ -181,8 +181,7 @@ function createTrxTransaction($fromAddress, $toAddress, $amountInSun) {
 /**
  * Sign a transaction with private key
  *
- * IMPORTANT: TronGrid no longer supports the gettransactionsign endpoint.
- * This implementation tries multiple signing methods in order of preference.
+ * Uses pure PHP implementation with OpenSSL and GMP
  *
  * @param array $transaction Unsigned transaction
  * @param string $privateKey Private key (hex)
@@ -190,25 +189,18 @@ function createTrxTransaction($fromAddress, $toAddress, $amountInSun) {
  */
 function signTransaction($transaction, $privateKey) {
     try {
-        // Method 1: Use secp256k1 library if available (BEST)
-        if (class_exists('kornrunner\Secp256k1')) {
-            error_log("Using secp256k1 library for signing");
-            require_once BASE_PATH . '/functions/tron_signing.php';
-            $signed = signTronTransaction($transaction, $privateKey);
-            if ($signed) return $signed;
+        // Use Pure PHP implementation (requires ext-gmp and ext-hash)
+        require_once BASE_PATH . '/functions/tron_signing_pure_php.php';
+
+        error_log("Using Pure PHP signing method");
+        $signed = signTronTransactionPurePHP($transaction, $privateKey);
+
+        if ($signed) {
+            return $signed;
         }
 
-        // Method 2: Use Node.js TronWeb if available (GOOD)
-        if (file_exists(BASE_PATH . '/scripts/sign_transaction.js')) {
-            error_log("Using Node.js TronWeb for signing");
-            $signed = signTransactionWithNodeJS($transaction, $privateKey);
-            if ($signed) return $signed;
-        }
-
-        // Method 3: Manual signing attempt (LIMITED)
-        error_log("WARNING: Using basic signing - may not work correctly");
-        error_log("RECOMMENDED: Install composer require kornrunner/secp256k1-php");
-        return signTransactionManual($transaction, $privateKey);
+        error_log("Pure PHP signing failed");
+        return null;
 
     } catch (Exception $e) {
         error_log("Exception in signTransaction: " . $e->getMessage());
@@ -216,91 +208,6 @@ function signTransaction($transaction, $privateKey) {
     }
 }
 
-/**
- * Sign transaction using Node.js TronWeb
- *
- * @param array $transaction Unsigned transaction
- * @param string $privateKey Private key in hex
- * @return array|null Signed transaction or null on failure
- */
-function signTransactionWithNodeJS($transaction, $privateKey) {
-    try {
-        $txJson = json_encode($transaction);
-        $scriptPath = BASE_PATH . '/scripts/sign_transaction.js';
-
-        // Execute Node.js script
-        $command = "node " . escapeshellarg($scriptPath) . " " .
-                   escapeshellarg($txJson) . " " .
-                   escapeshellarg($privateKey) . " 2>&1";
-
-        $output = shell_exec($command);
-
-        if (!$output) {
-            error_log("Node.js signing failed: No output");
-            return null;
-        }
-
-        $result = json_decode($output, true);
-
-        if ($result && isset($result['signature'])) {
-            return $result;
-        }
-
-        error_log("Node.js signing failed: " . $output);
-        return null;
-
-    } catch (Exception $e) {
-        error_log("Exception in signTransactionWithNodeJS: " . $e->getMessage());
-        return null;
-    }
-}
-
-/**
- * Manual transaction signing (basic implementation)
- *
- * WARNING: This is a simplified implementation and may not work for all transactions.
- * Only use as a last resort.
- *
- * @param array $transaction Unsigned transaction
- * @param string $privateKey Private key in hex
- * @return array|null Signed transaction or null on failure
- */
-function signTransactionManual($transaction, $privateKey) {
-    try {
-        // Check if we have the raw_data_hex field (needed for signing)
-        if (!isset($transaction['raw_data_hex'])) {
-            error_log("Transaction missing raw_data_hex field");
-            return null;
-        }
-
-        $rawDataHex = $transaction['raw_data_hex'];
-
-        // Hash the raw data with SHA256
-        $hash = hash('sha256', hex2bin($rawDataHex));
-
-        // Create a deterministic signature (THIS IS NOT SECURE - FOR TESTING ONLY)
-        // In reality, you need ECDSA secp256k1 signing
-        error_log("CRITICAL WARNING: Using insecure manual signing");
-        error_log("This will likely FAIL at broadcast");
-        error_log("SOLUTION: Run: composer require kornrunner/secp256k1-php");
-
-        // Generate placeholder signature
-        $r = hash('sha256', $hash . $privateKey);
-        $s = hash('sha256', $privateKey . $hash);
-        $v = '00'; // Recovery ID
-
-        $signature = $r . $s . $v;
-
-        // Add signature to transaction
-        $transaction['signature'] = [$signature];
-
-        return $transaction;
-
-    } catch (Exception $e) {
-        error_log("Exception in signTransactionManual: " . $e->getMessage());
-        return null;
-    }
-}
 
 /**
  * Broadcast a signed transaction

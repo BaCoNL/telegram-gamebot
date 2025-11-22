@@ -54,27 +54,34 @@ function deriveAddressFromPrivateKey($privateKey) {
             return null;
         }
 
-        // Try to find existing wallet with this private key in database
-        // This is a workaround since we don't have proper crypto libraries
+        // ALWAYS try to find existing wallet with this private key in database FIRST
+        // This ensures we use the CORRECT address that was originally generated
         try {
             $encryptedKey = encryptPrivateKey($privateKey);
             $wallet = R::findOne('wallet', 'private_key = ?', [$encryptedKey]);
             if ($wallet && $wallet->address) {
+                error_log("Using wallet address from database: " . $wallet->address);
                 return $wallet->address;
             }
         } catch (Exception $e) {
             // Database not available, continue with alternative method
+            error_log("Database not available for address lookup: " . $e->getMessage());
         }
 
         // For HOUSE wallet, check config
         if (defined('HOUSE_WALLET_PRIVATE_KEY') && $privateKey === HOUSE_WALLET_PRIVATE_KEY) {
             if (defined('HOUSE_WALLET_ADDRESS')) {
+                error_log("Using HOUSE wallet address from config: " . HOUSE_WALLET_ADDRESS);
                 return HOUSE_WALLET_ADDRESS;
             }
         }
 
-        // If we can't derive it properly, we need to return an error
-        error_log("Cannot derive TRON address without proper secp256k1 library. Private key not in database.");
+        // If we reach here, this is a NEW wallet being created
+        // We should NOT derive addresses ourselves during transaction signing
+        // This means the wallet wasn't properly created
+        error_log("WARNING: Cannot find wallet in database for this private key");
+        error_log("This should only happen when creating NEW wallets, not during transactions");
+
         return null;
 
     } catch (Exception $e) {

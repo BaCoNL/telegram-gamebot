@@ -22,7 +22,7 @@ function signTronTransaction($transaction, $privateKey) {
     try {
         // Check if secp256k1 library is available
         if (!class_exists('kornrunner\Secp256k1')) {
-            error_log("secp256k1 library not found. Install with: composer require kornrunner/secp256k1-php");
+            error_log("secp256k1 library not found. Install with: composer require kornrunner/secp256k1");
             return null;
         }
 
@@ -37,22 +37,35 @@ function signTronTransaction($transaction, $privateKey) {
         // Hash the raw data with SHA256
         $hash = hash('sha256', hex2bin($rawDataHex), true);
 
+        // Remove '0x' prefix from private key if present
+        $privateKey = str_replace('0x', '', $privateKey);
+
         // Create secp256k1 instance
         $secp256k1 = new Secp256k1();
 
         // Sign the hash
         $signature = $secp256k1->sign($hash, $privateKey);
 
-        // Get signature in hex format
-        $signatureHex = $signature->toHex();
+        // Get signature components
+        $r = $signature->getR();
+        $s = $signature->getS();
+        $recoveryId = $signature->getRecoveryParam();
+
+        // Format signature: r (32 bytes) + s (32 bytes) + recoveryId (1 byte)
+        $signatureHex = str_pad(gmp_strval($r, 16), 64, '0', STR_PAD_LEFT) .
+                        str_pad(gmp_strval($s, 16), 64, '0', STR_PAD_LEFT) .
+                        str_pad(dechex($recoveryId), 2, '0', STR_PAD_LEFT);
 
         // Add signature to transaction
         $transaction['signature'] = [$signatureHex];
+
+        error_log("Transaction signed successfully with signature length: " . strlen($signatureHex));
 
         return $transaction;
 
     } catch (Exception $e) {
         error_log("Exception in signTronTransaction: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
         return null;
     }
 }
